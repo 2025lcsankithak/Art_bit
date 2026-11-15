@@ -6,7 +6,9 @@ document.querySelectorAll('[data-upi-toggle]').forEach(button=>{
  function hide(){panel.hidden=true;button.setAttribute('aria-expanded','false');button.textContent='Pay now';clearTimeout(hideTimer);}
  button.addEventListener('click',()=>{
   if(!panel.hidden){hide();return;}
-  panel.hidden=false;button.setAttribute('aria-expanded','true');button.textContent='Hide UPI ID';
+  panel.hidden=false;button.setAttribute('aria-expanded','true');button.textContent='Hide QR';
+  const qr=panel.querySelector('[data-upi-uri]');
+  if(qr&&!qr.dataset.generated&&window.QRCode){new QRCode(qr,{text:qr.dataset.upiUri,width:180,height:180,colorDark:'#20231f',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});qr.dataset.generated='true';}
   hideTimer=setTimeout(hide,10000);
  });
 });

@@ -121,7 +121,7 @@ if ($pdo) {
         $q->execute([$me['id'], $me['id'], $me['id'], $me['id']]);
         $buyerStats = $q->fetch(PDO::FETCH_ASSOC) ?: $buyerStats;
 
-        $q = $pdo->prepare('SELECT a.id, a.title, a.category, a.image_url, a.ends_at,
+        $q = $pdo->prepare('SELECT a.id, a.title, a.category, a.image_url, a.ends_at, seller.name seller_name,
                                    CASE WHEN a.ends_at<=NOW() AND (SELECT wb.buyer_id FROM bids wb WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1)=? THEN seller.upi_id ELSE NULL END seller_upi,
                                    (SELECT wb.buyer_id FROM bids wb WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_buyer_id,
                                    MAX(mine.amount) my_bid,

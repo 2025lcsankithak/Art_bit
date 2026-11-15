@@ -49,7 +49,7 @@
                     </div>
                 </div>
                 <?php if ($status === 'Won' && !empty($bid['seller_upi'])): ?>
-                    <div class="winner-upi-details" id="winner-upi-<?= (int)$bid['id'] ?>" hidden><div><span>SELLER UPI ID</span><code><?= e($bid['seller_upi']) ?></code></div><a class="btn btn-dark" href="upi://pay?pa=<?= rawurlencode($bid['seller_upi']) ?>&amp;am=<?= rawurlencode((string)$bid['my_bid']) ?>&amp;cu=INR">Open UPI app</a></div>
+                    <div class="winner-upi-details" id="winner-upi-<?= (int)$bid['id'] ?>" hidden><div class="winner-qr-wrap"><span>SCAN TO PAY</span><div class="upi-qr" data-upi-uri="<?=e('upi://pay?pa='.rawurlencode($bid['seller_upi']).'&pn='.rawurlencode($bid['seller_name']).'&am='.rawurlencode((string)$bid['my_bid']).'&cu=INR')?>" role="img" aria-label="UPI payment QR code"></div><b><?=money($bid['my_bid'])?></b><small>Scan with a UPI app to pay the seller</small></div><a class="btn btn-dark" href="upi://pay?pa=<?= rawurlencode($bid['seller_upi']) ?>&amp;pn=<?= rawurlencode($bid['seller_name']) ?>&amp;am=<?= rawurlencode((string)$bid['my_bid']) ?>&amp;cu=INR">Open UPI app</a></div>
                 <?php endif; ?>
             <?php endforeach; ?>
         </div>
