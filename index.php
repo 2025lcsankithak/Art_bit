@@ -1,0 +1,21 @@
+<?php
+date_default_timezone_set('Asia/Kolkata');
+session_start();
+require __DIR__ . '/includes/database.php';
+require __DIR__ . '/includes/helpers.php';
+$me = $_SESSION['user'] ?? null;
+$notice = '';
+require __DIR__ . '/includes/actions.php';
+if (!$notice && isset($_GET['listed']) && $me && $me['role'] === 'Seller') $notice = 'Your artwork is listed and the auction is live.';
+if (!$notice && isset($_GET['date_updated']) && $me && $me['role'] === 'Seller') $notice = 'The auction end date has been updated.';
+if (!$notice && isset($_GET['updated']) && ($_GET['view'] ?? '') === 'profile') $notice = 'Your profile has been updated.';
+if (!$notice && isset($_GET['password_updated']) && ($_GET['view'] ?? '') === 'profile') $notice = 'Your password has been changed.';
+require __DIR__ . '/includes/data.php';
+require __DIR__ . '/views/header.php';
+if ($selected && $detail) require __DIR__ . '/views/artwork-detail.php';
+if (!$selected && $view === 'seller' && $me && $me['role'] === 'Seller') require __DIR__ . '/views/seller-studio.php';
+if (!$selected && $view === 'dashboard' && $me) require __DIR__ . '/views/buyer-dashboard.php';
+if (!$selected && $view === 'profile' && $me) require __DIR__ . '/views/profile.php';
+if (!$selected && $view === 'discover') require __DIR__ . '/views/discover.php';
+if (!$selected && $view === 'search') require __DIR__ . '/views/search.php';
+require __DIR__ . '/views/footer.php';
