@@ -19,6 +19,7 @@ $detail = null;
 $isWishlisted = false;
 $dash = [];
 $sellerArts = [];
+$sellerBidHistory = [];
 $buyerStats = ['active_bids' => 0, 'won_auctions' => 0, 'wishlist_count' => 0, 'won_value' => 0];
 $buyerBids = [];
 $buyerWishlist = [];
@@ -53,9 +54,14 @@ if ($pdo) {
         $detail = $q->fetch(PDO::FETCH_ASSOC);
 
         if ($detail && strtotime($detail['ends_at']) <= time()) {
-            $q = $pdo->prepare('SELECT u.id, u.name, u.email, u.phone, u.location, u.bio, b.amount FROM bids b JOIN users u ON u.id = b.buyer_id WHERE b.artwork_id = ? ORDER BY b.amount DESC, b.created_at ASC, b.id ASC LIMIT 1');
+            $q = $pdo->prepare('SELECT u.id, u.name, b.amount FROM bids b JOIN users u ON u.id = b.buyer_id WHERE b.artwork_id = ? ORDER BY b.amount DESC, b.created_at ASC, b.id ASC LIMIT 1');
             $q->execute([$selected]);
             $auctionWinner = $q->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($auctionWinner && $me && $me['role'] === 'Seller' && (int)$me['id'] === (int)$detail['seller_id']) {
+                $q = $pdo->prepare('SELECT email, phone, location, bio FROM users WHERE id=?');
+                $q->execute([$auctionWinner['id']]);
+                $auctionWinner = array_merge($auctionWinner, $q->fetch(PDO::FETCH_ASSOC) ?: []);
+            }
         }
 
         if ($detail && $me && $me['role'] === 'Buyer') {
@@ -71,37 +77,47 @@ if ($pdo) {
         $q = $pdo->prepare('SELECT COUNT(*) total,
                                    (SELECT COUNT(*) FROM artworks WHERE seller_id = ? AND ends_at > NOW()) active,
                                    (SELECT COUNT(*) FROM bids b JOIN artworks a ON a.id = b.artwork_id WHERE a.seller_id = ?) bids,
-                                   (SELECT COALESCE(SUM(amount), 0) FROM bids b JOIN artworks a ON a.id = b.artwork_id
-                                    WHERE a.seller_id = ? AND a.ends_at < NOW()
-                                    AND amount = (SELECT MAX(b2.amount) FROM bids b2 WHERE b2.artwork_id = a.id)) earnings
+                                   (SELECT COALESCE(SUM(w.amount), 0) FROM bids w JOIN artworks a ON a.id=w.artwork_id
+                                    WHERE a.seller_id=? AND a.ends_at<NOW()
+                                    AND w.id=(SELECT b2.id FROM bids b2 WHERE b2.artwork_id=a.id ORDER BY b2.amount DESC,b2.created_at ASC,b2.id ASC LIMIT 1)) earnings
                             FROM artworks WHERE seller_id = ?');
         $q->execute([$me['id'], $me['id'], $me['id'], $me['id']]);
         $dash = $q->fetch(PDO::FETCH_ASSOC);
 
         $q = $pdo->prepare('SELECT a.*, COALESCE(MAX(b.amount), a.base_price) current_bid,
                                    COUNT(DISTINCT b.buyer_id) bidders, COUNT(b.id) bid_count,
-                                   (SELECT u.name FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_name,
-                                   (SELECT u.email FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_email,
-                                   (SELECT u.phone FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_phone,
-                                   (SELECT u.location FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_location,
-                                   (SELECT u.bio FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_bio
+                                   CASE WHEN a.ends_at<=NOW() THEN (SELECT u.name FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) ELSE NULL END winner_name,
+                                   CASE WHEN a.ends_at<=NOW() THEN (SELECT u.email FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) ELSE NULL END winner_email,
+                                   CASE WHEN a.ends_at<=NOW() THEN (SELECT u.phone FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) ELSE NULL END winner_phone,
+                                   CASE WHEN a.ends_at<=NOW() THEN (SELECT u.location FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) ELSE NULL END winner_location,
+                                   CASE WHEN a.ends_at<=NOW() THEN (SELECT u.bio FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) ELSE NULL END winner_bio
                             FROM artworks a LEFT JOIN bids b ON b.artwork_id = a.id
                             WHERE a.seller_id = ? GROUP BY a.id ORDER BY a.ends_at DESC');
         $q->execute([$me['id']]);
         $sellerArts = $q->fetchAll(PDO::FETCH_ASSOC);
+
+        $q = $pdo->prepare('SELECT b.artwork_id, b.amount, b.created_at, u.name buyer_name
+                            FROM bids b JOIN artworks a ON a.id=b.artwork_id
+                            JOIN users u ON u.id=b.buyer_id
+                            WHERE a.seller_id=? ORDER BY b.artwork_id, b.created_at DESC, b.id DESC');
+        $q->execute([$me['id']]);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $historyBid) {
+            $artId = (int)$historyBid['artwork_id'];
+            $sellerBidHistory[$artId][] = ['bidder'=>$historyBid['buyer_name'], 'amount'=>$historyBid['amount'], 'created_at'=>$historyBid['created_at']];
+        }
     }
 
     if ($me && $me['role'] === 'Buyer') {
         $q = $pdo->prepare('SELECT
             (SELECT COUNT(DISTINCT a.id) FROM bids b JOIN artworks a ON a.id = b.artwork_id
              WHERE b.buyer_id = ? AND a.ends_at > NOW()) active_bids,
-            (SELECT COUNT(DISTINCT a.id) FROM bids b JOIN artworks a ON a.id = b.artwork_id
-             WHERE b.buyer_id = ? AND a.ends_at <= NOW()
-             AND b.amount = (SELECT MAX(b2.amount) FROM bids b2 WHERE b2.artwork_id = a.id)) won_auctions,
+            (SELECT COUNT(*) FROM bids b JOIN artworks a ON a.id=b.artwork_id
+             WHERE b.buyer_id=? AND a.ends_at<=NOW()
+             AND b.id=(SELECT b2.id FROM bids b2 WHERE b2.artwork_id=a.id ORDER BY b2.amount DESC,b2.created_at ASC,b2.id ASC LIMIT 1)) won_auctions,
             (SELECT COUNT(*) FROM wishlist WHERE user_id = ?) wishlist_count,
-            (SELECT COALESCE(SUM(b.amount), 0) FROM bids b JOIN artworks a ON a.id = b.artwork_id
-             WHERE b.buyer_id = ? AND a.ends_at <= NOW()
-             AND b.amount = (SELECT MAX(b2.amount) FROM bids b2 WHERE b2.artwork_id = a.id)) won_value');
+            (SELECT COALESCE(SUM(b.amount), 0) FROM bids b JOIN artworks a ON a.id=b.artwork_id
+             WHERE b.buyer_id=? AND a.ends_at<=NOW()
+             AND b.id=(SELECT b2.id FROM bids b2 WHERE b2.artwork_id=a.id ORDER BY b2.amount DESC,b2.created_at ASC,b2.id ASC LIMIT 1)) won_value');
         $q->execute([$me['id'], $me['id'], $me['id'], $me['id']]);
         $buyerStats = $q->fetch(PDO::FETCH_ASSOC) ?: $buyerStats;
 

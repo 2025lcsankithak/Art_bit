@@ -37,7 +37,7 @@
                     <span class="buyer-status <?= strtolower($status) ?>"><?= e($status) ?></span>
                     <div class="bid-withdraw-cell">
                     <?php if (!$ended): ?>
-                        <form method="post" class="bid-remove-form" onsubmit="return confirm('Withdraw all your bids on this artwork?')">
+                        <form method="post" class="bid-remove-form" onsubmit="return confirm('Withdraw all your bids on this artwork?')"><?=csrf_field()?>
                             <input type="hidden" name="action" value="withdraw_bid">
                             <input type="hidden" name="artwork_id" value="<?= (int) $bid['id'] ?>">
                             <button class="remove-btn" type="submit">Withdraw</button>
@@ -71,7 +71,7 @@
                     </a>
                     <b><?= money($saved['current_bid']) ?></b>
                     <span class="wishlist-auction-state"><?= strtotime($saved['ends_at']) > time() ? 'Auction live' : 'Auction ended' ?></span>
-                    <form method="post" class="wishlist-remove-form" onsubmit="return confirm('Remove this artwork from your wishlist?')">
+                    <form method="post" class="wishlist-remove-form" onsubmit="return confirm('Remove this artwork from your wishlist?')"><?=csrf_field()?>
                         <input type="hidden" name="action" value="wishlist">
                         <input type="hidden" name="artwork_id" value="<?= (int) $saved['id'] ?>">
                         <input type="hidden" name="return_to" value="dashboard">

@@ -2,14 +2,16 @@
 if($_SERVER['REQUEST_METHOD']==='POST' && $pdo){
  $action=$_POST['action']??'';
  try {
+  $sessionToken=$_SESSION['csrf_token']??'';$submittedToken=$_POST['csrf_token']??'';
+  if(!is_string($sessionToken)||$sessionToken===''||!is_string($submittedToken)||!hash_equals($sessionToken,$submittedToken))throw new Exception('This form expired. Refresh the page and try again.');
   if($action==='register'){
    $q=$pdo->prepare('INSERT INTO users(name,email,password,role) VALUES(?,?,?,?)');
    $q->execute([trim($_POST['name']),strtolower(trim($_POST['email'])),password_hash($_POST['password'],PASSWORD_DEFAULT),$_POST['role']==='Seller'?'Seller':'Buyer']);
-   $_SESSION['user']=['id'=>$pdo->lastInsertId(),'name'=>trim($_POST['name']),'role'=>$_POST['role']]; header('Location: index.php');exit;
+   session_regenerate_id(true);$_SESSION['csrf_token']=bin2hex(random_bytes(32));$_SESSION['user']=['id'=>$pdo->lastInsertId(),'name'=>trim($_POST['name']),'role'=>$_POST['role']]; header('Location: ?registered=1');exit;
   }
-  if($action==='login'){$q=$pdo->prepare('SELECT * FROM users WHERE email=?');$q->execute([strtolower(trim($_POST['email']))]);$u=$q->fetch(PDO::FETCH_ASSOC);if($u&&password_verify($_POST['password'],$u['password'])){$_SESSION['user']=['id'=>$u['id'],'name'=>$u['name'],'role'=>$u['role']];header('Location: index.php');exit;}throw new Exception('Email or password is incorrect.');}
+  if($action==='login'){$q=$pdo->prepare('SELECT * FROM users WHERE email=?');$q->execute([strtolower(trim($_POST['email']))]);$u=$q->fetch(PDO::FETCH_ASSOC);if($u&&password_verify($_POST['password'],$u['password'])){session_regenerate_id(true);$_SESSION['csrf_token']=bin2hex(random_bytes(32));$_SESSION['user']=['id'=>$u['id'],'name'=>$u['name'],'role'=>$u['role']];header('Location: ?signed_in=1');exit;}throw new Exception('Email or password is incorrect.');}
   if($action==='logout'){session_destroy();header('Location: index.php');exit;}
-  if($action==='bid'&&$me){if($me['role']!=='Buyer')throw new Exception('Only buyer accounts can place bids.');$id=(int)$_POST['artwork_id'];$pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM artworks WHERE id=? FOR UPDATE');$q->execute([$id]);$a=$q->fetch(PDO::FETCH_ASSOC);$q=$pdo->prepare('SELECT COALESCE(MAX(amount),?) FROM bids WHERE artwork_id=?');$q->execute([$a['base_price']??0,$id]);$top=(float)$q->fetchColumn();$amount=(float)$_POST['amount'];if(!$a||$a['seller_id']==$me['id']||strtotime($a['ends_at'])<=time()||$amount<$top+100)throw new Exception('Your bid must be at least ₹100 above the current bid.');$pdo->prepare('INSERT INTO bids(artwork_id,buyer_id,amount) VALUES(?,?,?)')->execute([$id,$me['id'],$amount]);$pdo->commit();header('Location: ?artwork='.$id.'&bid=ok');exit;}
+  if($action==='bid'&&$me){if($me['role']!=='Buyer')throw new Exception('Only buyer accounts can place bids.');$id=(int)$_POST['artwork_id'];$pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM artworks WHERE id=? FOR UPDATE');$q->execute([$id]);$a=$q->fetch(PDO::FETCH_ASSOC);$q=$pdo->prepare('SELECT COALESCE(MAX(amount),?) FROM bids WHERE artwork_id=?');$q->execute([$a['base_price']??0,$id]);$top=(float)$q->fetchColumn();$amount=(float)$_POST['amount'];$isTie=round($amount,2)===round($top,2);if(!$a||$a['seller_id']==$me['id']||strtotime($a['ends_at'])<=time()||(!$isTie&&$amount<$top+100))throw new Exception('Match the current bid or bid at least ₹100 more. The earliest matching bid wins a tie.');$pdo->prepare('INSERT INTO bids(artwork_id,buyer_id,amount) VALUES(?,?,?)')->execute([$id,$me['id'],$amount]);$pdo->commit();header('Location: ?artwork='.$id.'&bid=ok');exit;}
   if($action==='withdraw_bid'){
    if(!$me||$me['role']!=='Buyer')throw new Exception('Sign in with a buyer account to withdraw a bid.');
    $id=(int)($_POST['artwork_id']??0);
@@ -87,5 +89,5 @@ if($_SERVER['REQUEST_METHOD']==='POST' && $pdo){
    $pdo->prepare('INSERT INTO artworks(seller_id,title,description,category,image_url,base_price,starts_at,ends_at) VALUES(?,?,?,?,?,?,?,?)')->execute([$me['id'],$title,$description,$category,$image,$price,$start,$end]);
    header('Location: ?view=seller&listed=1');exit;
   }
- } catch(Throwable $x){if($pdo->inTransaction())$pdo->rollBack();$notice=$x->getMessage();}
+ } catch(Throwable $x){if($pdo->inTransaction())$pdo->rollBack();$notice=$x->getMessage();if(in_array($action,['login','register'],true)){$reopenAuth=true;$reopenAuthMode=$action;}}
 }

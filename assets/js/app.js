@@ -1,5 +1,5 @@
 function authMode(mode,el){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');let f=document.querySelector('#authform');f.querySelector('[name=action]').value=mode;f.querySelector('.name-field').hidden=mode==='login';f.querySelector('.role-field').hidden=mode==='login';}
-function setBid(add){let i=document.querySelector('[name=amount]');if(i)i.value=Number(i.min)+add-100;}
+function setBid(add){let i=document.querySelector('[name=amount]');if(i)i.value=Number(i.dataset.currentBid)+add;}
 document.querySelectorAll('[data-upi-toggle]').forEach(button=>{
  let panel=document.getElementById(button.getAttribute('aria-controls'));
  let hideTimer;
