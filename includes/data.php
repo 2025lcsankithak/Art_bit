@@ -27,7 +27,7 @@ $profile = null;
 
 if ($pdo) {
     if ($me) {
-        $q = $pdo->prepare('SELECT id, name, email, role, phone, location, bio FROM users WHERE id = ?');
+        $q = $pdo->prepare('SELECT id, name, email, role, phone, location, bio, upi_id FROM users WHERE id = ?');
         $q->execute([$me['id']]);
         $profile = $q->fetch(PDO::FETCH_ASSOC) ?: null;
     }
@@ -53,7 +53,7 @@ if ($pdo) {
         $detail = $q->fetch(PDO::FETCH_ASSOC);
 
         if ($detail && strtotime($detail['ends_at']) <= time()) {
-            $q = $pdo->prepare('SELECT u.id, u.name, u.email, b.amount FROM bids b JOIN users u ON u.id = b.buyer_id WHERE b.artwork_id = ? ORDER BY b.amount DESC, b.created_at ASC, b.id ASC LIMIT 1');
+            $q = $pdo->prepare('SELECT u.id, u.name, u.email, u.phone, u.location, u.bio, b.amount FROM bids b JOIN users u ON u.id = b.buyer_id WHERE b.artwork_id = ? ORDER BY b.amount DESC, b.created_at ASC, b.id ASC LIMIT 1');
             $q->execute([$selected]);
             $auctionWinner = $q->fetch(PDO::FETCH_ASSOC) ?: null;
         }
@@ -81,7 +81,10 @@ if ($pdo) {
         $q = $pdo->prepare('SELECT a.*, COALESCE(MAX(b.amount), a.base_price) current_bid,
                                    COUNT(DISTINCT b.buyer_id) bidders, COUNT(b.id) bid_count,
                                    (SELECT u.name FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_name,
-                                   (SELECT u.email FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_email
+                                   (SELECT u.email FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_email,
+                                   (SELECT u.phone FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_phone,
+                                   (SELECT u.location FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_location,
+                                   (SELECT u.bio FROM bids wb JOIN users u ON u.id=wb.buyer_id WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_bio
                             FROM artworks a LEFT JOIN bids b ON b.artwork_id = a.id
                             WHERE a.seller_id = ? GROUP BY a.id ORDER BY a.ends_at DESC');
         $q->execute([$me['id']]);
@@ -103,15 +106,18 @@ if ($pdo) {
         $buyerStats = $q->fetch(PDO::FETCH_ASSOC) ?: $buyerStats;
 
         $q = $pdo->prepare('SELECT a.id, a.title, a.category, a.image_url, a.ends_at,
+                                   CASE WHEN a.ends_at<=NOW() AND (SELECT wb.buyer_id FROM bids wb WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1)=? THEN seller.upi_id ELSE NULL END seller_upi,
+                                   (SELECT wb.buyer_id FROM bids wb WHERE wb.artwork_id=a.id ORDER BY wb.amount DESC, wb.created_at ASC, wb.id ASC LIMIT 1) winner_buyer_id,
                                    MAX(mine.amount) my_bid,
                                    COALESCE(MAX(all_bids.amount), a.base_price) current_bid,
                                    COUNT(DISTINCT all_bids.buyer_id) bidders
                             FROM bids mine
                             JOIN artworks a ON a.id = mine.artwork_id
+                            JOIN users seller ON seller.id = a.seller_id
                             LEFT JOIN bids all_bids ON all_bids.artwork_id = a.id
                             WHERE mine.buyer_id = ?
                             GROUP BY a.id ORDER BY a.ends_at DESC');
-        $q->execute([$me['id']]);
+        $q->execute([$me['id'], $me['id']]);
         $buyerBids = $q->fetchAll(PDO::FETCH_ASSOC);
 
         $q = $pdo->prepare('SELECT a.id, a.title, a.category, a.image_url, a.ends_at,

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
  phone VARCHAR(32) DEFAULT NULL,
  location VARCHAR(160) DEFAULT NULL,
  bio TEXT DEFAULT NULL,
+ upi_id VARCHAR(100) DEFAULT NULL,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS artworks (
@@ -51,6 +52,8 @@ SET @add_location = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE users ADD COLUMN locat
 PREPARE artbid_stmt FROM @add_location; EXECUTE artbid_stmt; DEALLOCATE PREPARE artbid_stmt;
 SET @add_bio = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE users ADD COLUMN bio TEXT DEFAULT NULL', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'bio');
 PREPARE artbid_stmt FROM @add_bio; EXECUTE artbid_stmt; DEALLOCATE PREPARE artbid_stmt;
+SET @add_upi_id = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE users ADD COLUMN upi_id VARCHAR(100) DEFAULT NULL', 'SELECT 1') FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'upi_id');
+PREPARE artbid_stmt FROM @add_upi_id; EXECUTE artbid_stmt; DEALLOCATE PREPARE artbid_stmt;
 USE artbid;
 
 -- Demo password for every account below: password123

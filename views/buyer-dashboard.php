@@ -23,25 +23,34 @@
 
     <?php if ($buyerBids): ?>
         <div class="buyer-bids">
-            <div class="buyer-bids-head"><span>Artwork</span><span>Your bid</span><span>Current bid</span><span>Status</span><span></span></div>
+            <div class="buyer-bids-head"><span>Artwork</span><span>Your bid</span><span>Current bid</span><span>Status</span><span>Withdraw</span><span>Payment</span></div>
             <?php foreach ($buyerBids as $bid):
                 $ended = strtotime($bid['ends_at']) <= time();
                 $leading = (float) $bid['my_bid'] >= (float) $bid['current_bid'];
-                $status = $ended ? ($leading ? 'Won' : 'Ended') : ($leading ? 'Leading' : 'Outbid');
+                $won = $ended && (int)$bid['winner_buyer_id'] === (int)$me['id'];
+                $status = $ended ? ($won ? 'Won' : 'Ended') : ($leading ? 'Leading' : 'Outbid');
             ?>
                 <div class="buyer-bid-row">
                     <a class="buyer-artwork" href="?artwork=<?= (int) $bid['id'] ?>"><span class="buyer-thumb" style="background-image:url('<?= e($bid['image_url']) ?>')"></span><span><b><?= e($bid['title']) ?></b><small><?= e($bid['category']) ?></small></span></a>
                     <b><?= money($bid['my_bid']) ?></b>
                     <b><?= money($bid['current_bid']) ?></b>
                     <span class="buyer-status <?= strtolower($status) ?>"><?= e($status) ?></span>
+                    <div class="bid-withdraw-cell">
                     <?php if (!$ended): ?>
                         <form method="post" class="bid-remove-form" onsubmit="return confirm('Withdraw all your bids on this artwork?')">
                             <input type="hidden" name="action" value="withdraw_bid">
                             <input type="hidden" name="artwork_id" value="<?= (int) $bid['id'] ?>">
                             <button class="remove-btn" type="submit">Withdraw</button>
                         </form>
-                    <?php else: ?><span></span><?php endif; ?>
+                    <?php else: ?><span class="bid-action-empty">—</span><?php endif; ?>
+                    </div>
+                    <div class="bid-payment-cell">
+                    <?php if ($status === 'Won' && !empty($bid['seller_upi'])): ?><button class="btn btn-dark winner-pay-toggle" type="button" data-upi-toggle aria-expanded="false" aria-controls="winner-upi-<?= (int)$bid['id'] ?>">Pay now</button><?php else: ?><span class="bid-action-empty">—</span><?php endif; ?>
+                    </div>
                 </div>
+                <?php if ($status === 'Won' && !empty($bid['seller_upi'])): ?>
+                    <div class="winner-upi-details" id="winner-upi-<?= (int)$bid['id'] ?>" hidden><div><span>SELLER UPI ID</span><code><?= e($bid['seller_upi']) ?></code></div><a class="btn btn-dark" href="upi://pay?pa=<?= rawurlencode($bid['seller_upi']) ?>&amp;am=<?= rawurlencode((string)$bid['my_bid']) ?>&amp;cu=INR">Open UPI app</a></div>
+                <?php endif; ?>
             <?php endforeach; ?>
         </div>
     <?php else: ?>

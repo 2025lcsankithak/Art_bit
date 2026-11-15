@@ -39,14 +39,18 @@ if($_SERVER['REQUEST_METHOD']==='POST' && $pdo){
   if($action==='update_profile'){
    if(!$me)throw new Exception('Sign in to edit your profile.');
    $name=trim($_POST['name']??'');$email=strtolower(trim($_POST['email']??''));
-   $phone=trim($_POST['phone']??'');$location=trim($_POST['location']??'');$bio=trim($_POST['bio']??'');
+   $phoneNumber=trim($_POST['phone_number']??'');$phoneCode=trim($_POST['phone_country_code']??'');$location=trim($_POST['location']??'');$bio=trim($_POST['bio']??'');
+   $upiId=trim($_POST['upi_id']??'');
    if($name===''||strlen($name)>120||!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>190)throw new Exception('Enter a valid name and email address.');
-   if($me['role']==='Seller'&&(strlen($phone)>32||!preg_match('/^[0-9+().\s-]*$/',$phone)||strlen($location)>160||strlen($bio)>1000))throw new Exception('Check your phone, location, and bio fields.');
+   if(!in_array($phoneCode,phone_country_codes(),true)||strlen($phoneNumber)>24||!preg_match('/^[0-9().\s-]*$/',$phoneNumber)||strlen($location)>160||strlen($bio)>1000)throw new Exception('Check your phone, location, and bio fields.');
+   if($me['role']==='Seller'&&$upiId!==''&&(strlen($upiId)>100||!preg_match('/^[A-Za-z0-9._-]{2,64}@[A-Za-z0-9.-]{2,32}$/',$upiId)))throw new Exception('Enter a valid UPI ID, such as name@bank.');
    $q=$pdo->prepare('SELECT id FROM users WHERE email=? AND id<>?');$q->execute([$email,$me['id']]);
    if($q->fetchColumn())throw new Exception('That email address is already in use.');
-   if($me['role']==='Seller'){
-    $q=$pdo->prepare('UPDATE users SET name=?,email=?,phone=?,location=?,bio=? WHERE id=?');$q->execute([$name,$email,$phone?:null,$location?:null,$bio?:null,$me['id']]);
-   }else{$q=$pdo->prepare('UPDATE users SET name=?,email=? WHERE id=?');$q->execute([$name,$email,$me['id']]);}
+   $phoneDigits=preg_replace('/\D/','',$phoneNumber);$countryDigits=substr($phoneCode,1);
+   if($phoneDigits!==''&&strlen($phoneDigits)>10&&strpos($phoneDigits,$countryDigits)===0)$phoneDigits=substr($phoneDigits,strlen($countryDigits));
+   $phone=$phoneDigits!==''?$phoneCode.' '.$phoneDigits:null;
+   if($me['role']==='Seller'){$q=$pdo->prepare('UPDATE users SET name=?,email=?,phone=?,location=?,bio=?,upi_id=? WHERE id=?');$q->execute([$name,$email,$phone,$location?:null,$bio?:null,$upiId?:null,$me['id']]);}
+   else{$q=$pdo->prepare('UPDATE users SET name=?,email=?,phone=?,location=?,bio=? WHERE id=?');$q->execute([$name,$email,$phone,$location?:null,$bio?:null,$me['id']]);}
    $_SESSION['user']['name']=$name;
    header('Location: ?view=profile&updated=1');exit;
   }
